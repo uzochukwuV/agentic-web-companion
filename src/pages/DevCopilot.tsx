@@ -34,13 +34,28 @@ const DevCopilot = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Try to parse error body for result data
+        if (error.context?.body) {
+          try {
+            const bodyText = await error.context.body.text?.() || "";
+            const parsed = JSON.parse(bodyText);
+            if (parsed.resultJson) {
+              const r = typeof parsed.resultJson === "string" ? JSON.parse(parsed.resultJson) : parsed.resultJson;
+              setResult(r);
+              if (parsed.logs) setStreamLog(parsed.logs);
+              return;
+            }
+          } catch { /* fall through */ }
+        }
+        throw error;
+      }
 
       if (data?.resultJson) {
         try {
           setResult(typeof data.resultJson === "string" ? JSON.parse(data.resultJson) : data.resultJson);
         } catch {
-          setResult({ raw: data.resultJson });
+          setResult({ raw: typeof data.resultJson === "string" ? data.resultJson : JSON.stringify(data.resultJson, null, 2) });
         }
       }
       if (data?.logs) {
