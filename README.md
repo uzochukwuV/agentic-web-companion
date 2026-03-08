@@ -1,8 +1,12 @@
-# Welcome to your Lovable project
+# DevAgent
 
-## Project info
+DevAgent is an intelligent browser automation platform that enables developers to extract documentation and run automated end-to-end tests through natural language prompts. It combines AI-powered agents with SSE streaming to provide real-time feedback on complex workflows.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
+
+- **DevCopilot**: Extract structured data, code examples, and troubleshooting guides from developer documentation using natural language queries.
+- **QA Tester**: Run prompt-based end-to-end tests against any web application with real-time agent activity logs and detailed test reports.
+- **Secure Proxy**: Backend Edge Function manages API communication securely, supporting long-running operations up to 300 seconds.
 
 ## How can I edit this code?
 

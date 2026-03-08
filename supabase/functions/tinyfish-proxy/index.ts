@@ -31,9 +31,9 @@ Deno.serve(async (req) => {
 
     console.log("Calling TinyFish API with:", { url, goal: goal.substring(0, 100) });
 
-    // Use AbortController for timeout (240s to stay under edge function limits)
+    // Use AbortController for timeout (300s for long-running operations)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 240000);
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
 
     const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
       method: "POST",
