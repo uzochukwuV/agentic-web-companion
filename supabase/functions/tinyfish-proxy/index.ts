@@ -29,6 +29,12 @@ Deno.serve(async (req) => {
       );
     }
 
+    console.log("Calling TinyFish API with:", { url, goal: goal.substring(0, 100) });
+
+    // Use AbortController for timeout (240s to stay under edge function limits)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 240000);
+
     const response = await fetch("https://agent.tinyfish.ai/v1/automation/run-sse", {
       method: "POST",
       headers: {
@@ -36,10 +42,14 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ url, goal }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error("TinyFish API error:", response.status, errorText);
       throw new Error(`TinyFish API error [${response.status}]: ${errorText}`);
     }
 
@@ -50,36 +60,75 @@ Deno.serve(async (req) => {
     let resultJson = null;
     const logs: string[] = [];
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
 
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          try {
-            const event = JSON.parse(line.slice(6));
-            if (event.type === "ACTION") {
-              logs.push(`${event.action || event.description || "Performing action..."}`);
-            } else if (event.type === "NAVIGATION") {
-              logs.push(`Navigating to ${event.url || "..."}`);
-            } else if (event.type === "COMPLETE" && event.status === "COMPLETED") {
-              resultJson = event.resultJson;
-              logs.push("✅ Completed successfully");
-            } else if (event.type === "ERROR") {
-              logs.push(`❌ ${event.message || "Error occurred"}`);
-            } else if (event.message || event.description) {
-              logs.push(event.message || event.description);
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              console.log("SSE event type:", event.type);
+              
+              if (event.type === "ACTION") {
+                logs.push(`${event.action || event.description || "Performing action..."}`);
+              } else if (event.type === "NAVIGATION") {
+                logs.push(`Navigating to ${event.url || "..."}`);
+              } else if (event.type === "COMPLETE" && event.status === "COMPLETED") {
+                resultJson = event.resultJson;
+                logs.push("✅ Completed successfully");
+              } else if (event.type === "RESULT" || event.type === "FINAL_RESULT") {
+                // Some TinyFish versions use different event names for results
+                resultJson = event.resultJson || event.result || event.data;
+                logs.push("✅ Result received");
+              } else if (event.type === "ERROR") {
+                logs.push(`❌ ${event.message || "Error occurred"}`);
+              } else if (event.message || event.description) {
+                logs.push(event.message || event.description);
+              }
+              
+              // Check if event itself contains the result at top level
+              if (!resultJson && event.topic && event.overview) {
+                resultJson = event;
+                logs.push("✅ Result extracted from event");
+              }
+            } catch {
+              // skip malformed SSE lines
             }
-          } catch {
-            // skip malformed SSE lines
           }
         }
       }
+    } catch (streamError) {
+      console.error("Stream reading error:", streamError);
+      // If we already got a result, that's fine
+      if (!resultJson) {
+        logs.push("⚠ Stream interrupted");
+      }
+    } finally {
+      try { reader.releaseLock(); } catch { /* ignore */ }
     }
+
+    // Process any remaining buffer
+    if (buffer.trim()) {
+      if (buffer.startsWith("data: ")) {
+        try {
+          const event = JSON.parse(buffer.slice(6));
+          if (event.type === "COMPLETE" || event.type === "RESULT" || event.type === "FINAL_RESULT") {
+            resultJson = event.resultJson || event.result || event.data || resultJson;
+          }
+          if (!resultJson && event.topic && event.overview) {
+            resultJson = event;
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    console.log("Final result:", resultJson ? "received" : "null", "Logs:", logs.length);
 
     return new Response(
       JSON.stringify({ resultJson, logs, feature }),
@@ -88,9 +137,12 @@ Deno.serve(async (req) => {
   } catch (error: unknown) {
     console.error("TinyFish proxy error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
+    const isTimeout = message.includes("abort");
     return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ 
+        error: isTimeout ? "Request timed out. The agent took too long to respond." : message 
+      }),
+      { status: isTimeout ? 504 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
