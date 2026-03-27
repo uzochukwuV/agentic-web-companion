@@ -14,13 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      extractions: {
+        Row: {
+          columns: string[] | null
+          created_at: string
+          data: Json
+          embedding: string | null
+          extraction_prompt: string
+          id: string
+          source_url: string
+          summary: string | null
+          total_records: number | null
+        }
+        Insert: {
+          columns?: string[] | null
+          created_at?: string
+          data?: Json
+          embedding?: string | null
+          extraction_prompt: string
+          id?: string
+          source_url: string
+          summary?: string | null
+          total_records?: number | null
+        }
+        Update: {
+          columns?: string[] | null
+          created_at?: string
+          data?: Json
+          embedding?: string | null
+          extraction_prompt?: string
+          id?: string
+          source_url?: string
+          summary?: string | null
+          total_records?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      search_extractions: {
+        Args: {
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          columns: string[]
+          created_at: string
+          data: Json
+          extraction_prompt: string
+          id: string
+          similarity: number
+          source_url: string
+          summary: string
+          total_records: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
