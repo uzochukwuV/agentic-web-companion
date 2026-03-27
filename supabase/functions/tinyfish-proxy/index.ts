@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
           if (line.startsWith("data: ")) {
             try {
               const event = JSON.parse(line.slice(6));
-              console.log("SSE event type:", event.type);
+              console.log("SSE event type:", event.type, "keys:", Object.keys(event), "full:", JSON.stringify(event).substring(0, 500));
               
               if (event.type === "ACTION") {
                 logs.push(`${event.action || event.description || "Performing action..."}`);
