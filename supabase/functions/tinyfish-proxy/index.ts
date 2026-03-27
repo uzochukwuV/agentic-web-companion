@@ -79,11 +79,18 @@ Deno.serve(async (req) => {
                 logs.push(`${event.action || event.description || "Performing action..."}`);
               } else if (event.type === "NAVIGATION") {
                 logs.push(`Navigating to ${event.url || "..."}`);
-              } else if (event.type === "COMPLETE" && event.status === "COMPLETED") {
-                resultJson = event.resultJson;
+              } else if (event.type === "PROGRESS") {
+                logs.push(event.message || event.description || event.step || "Processing...");
+              } else if (event.type === "HEARTBEAT") {
+                // Keep-alive, no log needed
+              } else if (event.type === "STARTED") {
+                logs.push("🚀 Agent started");
+              } else if (event.type === "STREAMING_URL") {
+                logs.push("📡 Live session connected");
+              } else if (event.type === "COMPLETE" || event.type === "COMPLETED") {
+                resultJson = event.resultJson || event.result || event.data || resultJson;
                 logs.push("✅ Completed successfully");
               } else if (event.type === "RESULT" || event.type === "FINAL_RESULT") {
-                // Some TinyFish versions use different event names for results
                 resultJson = event.resultJson || event.result || event.data;
                 logs.push("✅ Result received");
               } else if (event.type === "ERROR") {
